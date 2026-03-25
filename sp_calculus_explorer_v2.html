@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SP Calculus: Signed Permutation Explorer</title>
+<style>
+
+  body { font-family: Georgia, serif; background: #f9f7f2; color: #222; max-width: 900px; margin: 0 auto; padding: 20px; }
+  h1 { color: #3a3a6a; border-bottom: 2px solid #3a3a6a; padding-bottom: 8px; }
+  h2 { color: #3a3a6a; margin-top: 24px; }
+  .panel { background: white; border: 1px solid #ccc; border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+  label { font-weight: bold; }
+  select, input { padding: 6px 10px; border: 1px solid #aaa; border-radius: 4px; font-size: 15px; }
+  button { padding: 7px 16px; background: #3a3a6a; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 15px; }
+  button:hover { background: #5a5aaa; }
+  button.secondary { background: #888; }
+  button.secondary:hover { background: #aaa; }
+  .op-btn { padding: 6px 12px; background: #e8e8f8; border: 1px solid #aaa; border-radius: 4px; cursor: pointer; font-size: 14px; font-family: monospace; margin: 3px; }
+  .op-btn:hover { background: #c8c8f0; }
+  .op-btn.mark { background: #f8e8e8; border-color: #c88; }
+  .op-btn.mark:hover { background: #f0c8c8; }
+  #expression-display { font-family: monospace; font-size: 18px; background: #f0f0ff; border: 1px solid #aaa; border-radius: 4px; padding: 10px; min-height: 32px; letter-spacing: 1px; }
+  #result-display { font-family: monospace; font-size: 16px; }
+  .strand-state { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .strand-box { border: 1px solid #aaa; border-radius: 4px; padding: 6px 12px; font-family: monospace; font-size: 15px; background: #fff; }
+  .strand-box.marked { background: #ffe0e0; border-color: #c00; font-weight: bold; }
+  .strand-box.marked::after { content: " *"; color: #c00; }
+  .history { font-family: monospace; font-size: 13px; color: #555; margin-top: 8px; max-height: 120px; overflow-y: auto; }
+  .diagram { font-family: monospace; font-size: 13px; white-space: pre; background: #f8f8f8; border: 1px solid #ddd; border-radius: 4px; padding: 10px; overflow-x: auto; }
+  .error { color: #c00; font-style: italic; }
+  .info { color: #555; font-size: 13px; margin-top: 6px; }
+  .result-tuple { font-size: 20px; font-weight: bold; color: #3a3a6a; margin: 8px 0; }
+  .section-label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  #juxt-panel { display: flex; gap: 16px; flex-wrap: wrap; }
+  .juxt-expr { flex: 1; min-width: 200px; }
+  .juxt-result { margin-top: 12px; }
+  .mark-count-table { border-collapse: collapse; margin-top: 8px; }
+  .mark-count-table th, .mark-count-table td { border: 1px solid #ccc; padding: 5px 12px; text-align: center; font-family: monospace; }
+  .mark-count-table th { background: #eee; }
+  textarea { font-family: monospace; font-size: 14px; width: 100%; box-sizing: border-box; border: 1px solid #aaa; border-radius: 4px; padding: 8px; }
+
+</style>
+</head>
+<body>
+<h1>SP Calculus Explorer</h1>
+<p class="info">Explore n-strand Signed Permutation systems. Operations: <b>Pn</b> swaps strands at positions n and n+1. <b>Mn</b> places a mark on the strand at position n. Marks cancel in pairs (mod-2).</p>
+
+<div class="panel">
+  <h2>Settings</h2>
+  <div class="controls">
+    <label>Number of strands (n):</label>
+    <select id="n-strands">
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4" selected>4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+    </select>
+    <label>Root:</label>
+    <select id="root-type">
+      <option value="variable">Variable (a,b,c,...)</option>
+      <option value="empty">Constant empty (**)</option>
+      <option value="marked">Constant marked</option>
+    </select>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Expression Builder</h2>
+  <div class="section-label">Click to build expression:</div>
+  <div id="op-buttons"></div>
+  <div class="controls" style="margin-top:10px;">
+    <button class="secondary" id="undo-btn">&#8676; Undo</button>
+    <button class="secondary" id="clear-btn">&#10005; Clear</button>
+    <button id="eval-btn">&#9654; Evaluate</button>
+  </div>
+  <div class="section-label">Expression:</div>
+  <div id="expression-display">&mdash;</div>
+  <div class="section-label" style="margin-top:10px;">Or type expression directly:</div>
+  <div class="controls">
+    <input type="text" id="text-input" placeholder="e.g. M1 P1 P3 M3 P2 M2" style="flex:1; min-width:200px;">
+    <button id="parse-btn">Parse</button>
+  </div>
+  <div id="parse-error" class="error"></div>
+</div>
+
+<div class="panel">
+  <h2>Result</h2>
+  <div id="result-display"><span class="info">Enter an expression above and click Evaluate.</span></div>
+</div>
+
+<div class="panel">
+  <h2>ASCII Strand Diagram</h2>
+  <div id="diagram-display" class="diagram">&mdash;</div>
+</div>
+
+<div class="panel">
+  <h2>Juxtaposition</h2>
+  <p class="info">Evaluate two expressions and juxtapose their results componentwise, then simplify using LoF rules.</p>
+  <div id="juxt-panel">
+    <div class="juxt-expr">
+      <div class="section-label">Expression A:</div>
+      <textarea id="juxt-a" rows="2" placeholder="e.g. P1 M1 P3 M4"></textarea>
+      <select id="root-a" style="margin-top:4px;">
+        <option value="variable_a">Variable A</option>
+        <option value="variable_b">Variable B</option>
+        <option value="empty">Constant (**)</option>
+      </select>
+    </div>
+    <div class="juxt-expr">
+      <div class="section-label">Expression B:</div>
+      <textarea id="juxt-b" rows="2" placeholder="e.g. P2 M2 M1 P1 P3 M3 P2 M3"></textarea>
+      <select id="root-b" style="margin-top:4px;">
+        <option value="variable_a">Variable A</option>
+        <option value="variable_b" selected>Variable B</option>
+        <option value="empty">Constant (**)</option>
+      </select>
+    </div>
+  </div>
+  <button id="juxt-btn" style="margin-top:10px;">Juxtapose A &#8741; B</button>
+  <div id="juxt-result" class="juxt-result"></div>
+</div>
+
+<script>
+// ---- Core SP Engine ----
+
+function getNStrands() { return parseInt(document.getElementById('n-strands').value); }
+
+function makeInitialState(n, rootType) {
+  // Each strand: { id: 1..n, marks: 0 }
+  // Position array: state[i] = { strandId, marks }
+  let positions = [];
+  for (let i = 0; i < n; i++) {
+    positions.push({ strandId: i+1, marks: 0 });
+  }
+  return positions;
+}
+
+function applyP(positions, n_op) {
+  // Swap positions n_op-1 and n_op (1-indexed: swap pos n and n+1)
+  let n = positions.length;
+  let i = n_op - 1; // 0-indexed
+  if (i < 0 || i+1 >= n) return { positions, error: `P${n_op} invalid for ${n} strands` };
+  let newPos = positions.slice();
+  let tmp = newPos[i];
+  newPos[i] = newPos[i+1];
+  newPos[i+1] = tmp;
+  return { positions: newPos, error: null };
+}
+
+function applyM(positions, n_op) {
+  let n = positions.length;
+  let i = n_op - 1; // 0-indexed
+  if (i < 0 || i >= n) return { positions, error: `M${n_op} invalid for ${n} strands` };
+  let newPos = positions.map((p, idx) => idx === i ? { strandId: p.strandId, marks: p.marks + 1 } : p);
+  return { positions: newPos, error: null };
+}
+
+function parseExpression(exprStr) {
+  // Returns array of {type: 'P'|'M', n: int} or error string
+  let tokens = exprStr.trim().split(/\s+/).filter(t => t.length > 0);
+  let ops = [];
+  for (let t of tokens) {
+    let m = t.match(/^([PM])(\d+)$/i);
+    if (!m) return { ops: null, error: `Unknown token: "${t}"` };
+    ops.push({ type: m[1].toUpperCase(), n: parseInt(m[2]) });
+  }
+  return { ops, error: null };
+}
+
+function evaluateOps(ops, initialPositions) {
+  let positions = initialPositions.map(p => ({ ...p }));
+  let steps = [{ positions: positions.map(p => ({ ...p })), op: null }];
+  for (let op of ops) {
+    let res;
+    if (op.type === 'P') res = applyP(positions, op.n);
+    else res = applyM(positions, op.n);
+    if (res.error) return { positions: null, steps: null, error: res.error };
+    positions = res.positions;
+    steps.push({ positions: positions.map(p => ({ ...p })), op: `${op.type}${op.n}` });
+  }
+  return { positions, steps, error: null };
+}
+
+function getStrandMarkCounts(steps, n) {
+  // For each strand 1..n, count total marks applied to it
+  let counts = new Array(n+1).fill(0);
+  for (let step of steps) {
+    if (!step.op || !step.op.startsWith('M')) continue;
+    // Find which strand was at the marked position just before this step
+    let opN = parseInt(step.op.substring(1));
+    // The position before this step is the previous step's positions
+    let stepIdx = steps.indexOf(step);
+    let prevPositions = steps[stepIdx-1].positions;
+    let strand = prevPositions[opN-1].strandId;
+    counts[strand]++;
+  }
+  return counts;
+}
+
+function formatTuple(positions, rootType) {
+  return positions.map(p => {
+    let label = strandLabel(p.strandId, rootType);
+    let marked = (p.marks % 2 === 1);
+    if (rootType === 'empty') {
+      return marked ? '*' : '∅';
+    } else if (rootType === 'marked') {
+      return marked ? '∅' : '*';
+    } else {
+      return marked ? label + '̅' : label; // overline for marked
+    }
+  });
+}
+
+function strandLabel(id, rootType) {
+  const labels = ['a','b','c','d','e','f'];
+  if (rootType === 'empty') return '∅';
+  if (rootType === 'marked') return '*';
+  return labels[id-1] || `s${id}`;
+}
+
+// ---- UI State ----
+let currentOps = [];
+let currentSteps = null;
+
+function resetAll() {
+  currentOps = [];
+  currentSteps = null;
+  renderOpButtons();
+  updateExprDisplay();
+  document.getElementById('result-display').innerHTML = '<span class="info">Enter an expression and click Evaluate.</span>';
+  document.getElementById('diagram-display').textContent = '—';
+  document.getElementById('parse-error').textContent = '';
+}
+
+function resetExpr() {
+  currentOps = [];
+  currentSteps = null;
+  updateExprDisplay();
+  document.getElementById('parse-error').textContent = '';
+}
+
+function undoLast() {
+  currentOps.pop();
+  updateExprDisplay();
+}
+
+function renderOpButtons() {
+  let n = getNStrands();
+  let div = document.getElementById('op-buttons');
+  div.innerHTML = '';
+  for (let i = 1; i < n; i++) {
+    let b = document.createElement('button');
+    b.className = 'op-btn';
+    b.textContent = `P${i}`;
+    b.onclick = () => { currentOps.push({type:'P', n:i}); updateExprDisplay(); };
+    div.appendChild(b);
+  }
+  for (let i = 1; i <= n; i++) {
+    let b = document.createElement('button');
+    b.className = 'op-btn mark';
+    b.textContent = `M${i}`;
+    b.onclick = () => { currentOps.push({type:'M', n:i}); updateExprDisplay(); };
+    div.appendChild(b);
+  }
+}
+
+function updateExprDisplay() {
+  let d = document.getElementById('expression-display');
+  if (currentOps.length === 0) { d.textContent = '—'; return; }
+  d.textContent = currentOps.map(o => o.type + o.n).join(' ');
+}
+
+function evaluateExpr() {
+  let n = getNStrands();
+  let rootType = document.getElementById('root-type').value;
+  let initialPositions = makeInitialState(n, rootType);
+  let result = evaluateOps(currentOps, initialPositions);
+  if (result.error) {
+    document.getElementById('result-display').innerHTML = `<span class="error">${result.error}</span>`;
+    return;
+  }
+  currentSteps = result.steps;
+  renderResult(result.positions, result.steps, rootType, n);
+  renderDiagram(result.steps, currentOps, n);
+}
+
+function parseTextExpr() {
+  let text = document.getElementById('text-input').value;
+  let { ops, error } = parseExpression(text);
+  document.getElementById('parse-error').textContent = error || '';
+  if (error) return;
+  currentOps = ops;
+  updateExprDisplay();
+  evaluateExpr();
+}
+
+function renderResult(positions, steps, rootType, n) {
+  let tuple = formatTuple(positions, rootType);
+  let markCounts = getStrandMarkCounts(steps, n);
+
+  let html = '';
+  html += '<div class="section-label">Output tuple:</div>';
+  html += '<div class="result-tuple">(' + tuple.join(', ') + ')</div>';
+
+  html += '<div class="section-label" style="margin-top:10px;">Strand states:</div>';
+  html += '<div class="strand-state">';
+  for (let p of positions) {
+    let marked = (p.marks % 2 === 1);
+    let label = strandLabel(p.strandId, rootType === 'variable' ? 'variable' : rootType);
+    html += `<div class="strand-box${marked ? ' marked' : ''}">pos ${positions.indexOf(p)+1}: strand ${p.strandId} (${label})</div>`;
+  }
+  html += '</div>';
+
+  html += '<div class="section-label" style="margin-top:10px;">Mark counts per strand (mod-2):</div>';
+  html += '<table class="mark-count-table"><tr><th>Strand</th>';
+  for (let i = 1; i <= n; i++) html += `<th>${i}</th>`;
+  html += '</tr><tr><td>Total marks</td>';
+  for (let i = 1; i <= n; i++) html += `<td>${markCounts[i]}</td>`;
+  html += '</tr><tr><td>Net (mod 2)</td>';
+  for (let i = 1; i <= n; i++) html += `<td>${markCounts[i] % 2 === 1 ? '✓ marked' : '—'}</td>`;
+  html += '</tr></table>';
+
+  html += '<div class="section-label" style="margin-top:10px;">Permutation (output vector):</div>';
+  html += '<div style="font-family:monospace; font-size:16px;">(' + positions.map(p => p.strandId).join(', ') + ')</div>';
+
+  document.getElementById('result-display').innerHTML = html;
+}
+
+function renderDiagram(steps, ops, n) {
+  if (!steps || steps.length < 2) { document.getElementById('diagram-display').textContent = '—'; return; }
+  let lines = [];
+  let width = 6;
+  let sep = ' '.repeat(width);
+
+  // Header: strand numbers
+  let header = '';
+  for (let i = 0; i < n; i++) header += String(i+1).padEnd(width);
+  lines.push(header);
+  lines.push(Array(n).fill('|'.padEnd(width)).join(''));
+
+  for (let s = 1; s < steps.length; s++) {
+    let op = ops[s-1];
+    let line1 = '', line2 = '', line3 = '';
+    let prevPos = steps[s-1].positions;
+
+    if (op.type === 'P') {
+      let pi = op.n - 1; // 0-indexed left of swap
+      for (let i = 0; i < n; i++) {
+        if (i === pi) {
+          line1 += ' \  / ';
+          line2 += '  \/  ';
+          line3 += '  /\  ';
+        } else if (i === pi+1) {
+          line1 += '/     ';
+          line2 += '      ';
+          line3 += '\     ';
+        } else {
+          line1 += '|     ';
+          line2 += '|     ';
+          line3 += '|     ';
+        }
+      }
+      lines.push(line1);
+      lines.push(line2);
+      lines.push(line3);
+    } else {
+      // M operation
+      let mi = op.n - 1;
+      for (let i = 0; i < n; i++) {
+        if (i === mi) {
+          line1 += '|     ';
+          line2 += '[ * ] ';
+          line3 += '|     ';
+        } else {
+          line1 += '|     ';
+          line2 += '|     ';
+          line3 += '|     ';
+        }
+      }
+      lines.push(line1);
+      lines.push(line2);
+      lines.push(line3);
+    }
+    lines.push(Array(n).fill('|'.padEnd(width)).join(''));
+  }
+
+  // Footer: output strand ids
+  let footer = '';
+  let finalPos = steps[steps.length-1].positions;
+  for (let p of finalPos) {
+    let marked = p.marks % 2 === 1;
+    footer += (marked ? p.strandId + '*' : String(p.strandId)).padEnd(width);
+  }
+  lines.push(footer);
+
+  document.getElementById('diagram-display').textContent = lines.join('
+');
+}
+
+// ---- Juxtaposition Engine ----
+
+function computeJuxtaposition() {
+  let n = getNStrands();
+  let exprA = document.getElementById('juxt-a').value;
+  let exprB = document.getElementById('juxt-b').value;
+  let rootAType = document.getElementById('root-a').value;
+  let rootBType = document.getElementById('root-b').value;
+
+  let { ops: opsA, error: errA } = parseExpression(exprA);
+  let { ops: opsB, error: errB } = parseExpression(exprB);
+
+  if (errA) { document.getElementById('juxt-result').innerHTML = `<span class="error">Expression A: ${errA}</span>`; return; }
+  if (errB) { document.getElementById('juxt-result').innerHTML = `<span class="error">Expression B: ${errB}</span>`; return; }
+
+  let initA = makeInitialState(n, 'variable');
+  let initB = makeInitialState(n, 'variable');
+
+  // For variable_b, offset strand IDs by n so they are distinct
+  if (rootBType === 'variable_b' && rootAType !== 'variable_b') {
+    initB = initB.map(p => ({ ...p, strandId: p.strandId + n }));
+  }
+  if (rootAType === 'variable_b') {
+    initA = initA.map(p => ({ ...p, strandId: p.strandId + n }));
+  }
+
+  let resA = evaluateOps(opsA, initA);
+  let resB = evaluateOps(opsB, initB);
+
+  if (resA.error) { document.getElementById('juxt-result').innerHTML = `<span class="error">Expression A evaluation error: ${resA.error}</span>`; return; }
+  if (resB.error) { document.getElementById('juxt-result').innerHTML = `<span class="error">Expression B evaluation error: ${resB.error}</span>`; return; }
+
+  // Format results
+  let fmtStrand = (p, offset) => {
+    let id = p.strandId > n ? p.strandId - n : p.strandId;
+    let prefix = p.strandId > n ? 'b' : 'a';
+    const labels = ['a','b','c','d','e','f'];
+    let varLabel = prefix === 'a' ? labels[id-1] : ['e','f','g','h','i','j'][id-1];
+    let marked = p.marks % 2 === 1;
+    return marked ? varLabel + '̅' : varLabel;
+  };
+
+  let tupleA = resA.positions.map(p => fmtStrand(p, 0));
+  let tupleB = resB.positions.map(p => fmtStrand(p, n));
+
+  // Juxtaposed (raw)
+  let juxtRaw = [];
+  for (let i = 0; i < n; i++) {
+    juxtRaw.push(tupleA[i] + ' ' + tupleB[i]);
+  }
+
+  // Simplify using LoF rules
+  // We track: strandId and marks for A and B at each position
+  let simplified = [];
+  let simplifyNotes = [];
+
+  for (let i = 0; i < n; i++) {
+    let pA = resA.positions[i];
+    let pB = resB.positions[i];
+    let markedA = pA.marks % 2 === 1;
+    let markedB = pB.marks % 2 === 1;
+    let sameStrand = (pA.strandId === pB.strandId) || 
+                     (rootAType === rootBType && pA.strandId % n === pB.strandId % n);
+
+    // Check if same value (Iteration: XX = X)
+    // Check if complement (Position: X X̄ = marked)
+    // Otherwise: leave as juxtaposition
+
+    if (sameStrand && markedA === markedB) {
+      // Iteration: XX = X
+      simplified.push(tupleA[i]);
+      simplifyNotes.push('Iteration (XX=X)');
+    } else if (sameStrand && markedA !== markedB) {
+      // Position: X X̄ = marked
+      simplified.push('*');
+      simplifyNotes.push('Position (XX̄=*)');
+    } else if (rootAType === 'empty' || rootBType === 'empty') {
+      // One is constant
+      if (rootAType === 'empty' && rootBType === 'empty') {
+        let val = (markedA || markedB) ? '*' : '∅';
+        simplified.push(val);
+        simplifyNotes.push(markedA || markedB ? 'mark·anything=mark' : 'Iteration');
+      } else {
+        // Variable with empty constant
+        if (!markedA && !markedB) { simplified.push('∅'); simplifyNotes.push('Iteration'); }
+        else if (markedA && markedB) { simplified.push('*'); simplifyNotes.push('Iteration'); }
+        else { simplified.push('*'); simplifyNotes.push('Occultation (A*=*)'); }
+      }
+    } else {
+      // No simplification
+      simplified.push(tupleA[i] + ' ' + tupleB[i]);
+      simplifyNotes.push('No simplification');
+    }
+  }
+
+  let html = '<div class="section-label" style="margin-top:10px;">Expression A result:</div>';
+  html += `<div class="result-tuple">(${tupleA.join(', ')})</div>`;
+  html += '<div class="section-label">Expression B result:</div>';
+  html += `<div class="result-tuple">(${tupleB.join(', ')})</div>`;
+  html += '<div class="section-label" style="margin-top:10px;">Raw juxtaposition A∥B:</div>';
+  html += `<div class="result-tuple">(${juxtRaw.join(',  ')})</div>`;
+  html += '<div class="section-label" style="margin-top:10px;">Simplified (LoF rules):</div>';
+  html += `<div class="result-tuple">(${simplified.join(', ')})</div>`;
+
+  html += '<div class="section-label" style="margin-top:10px;">Simplification notes:</div>';
+  html += '<table class="mark-count-table"><tr><th>Position</th>';
+  for (let i = 0; i < n; i++) html += `<th>${i+1}</th>`;
+  html += '</tr><tr><td>Rule applied</td>';
+  for (let note of simplifyNotes) html += `<td style="font-size:12px;">${note}</td>`;
+  html += '</tr></table>';
+
+  document.getElementById('juxt-result').innerHTML = html;
+}
+
+// ---- Init ----
+document.addEventListener("DOMContentLoaded", function() {
+  renderOpButtons();
+
+  document.getElementById("n-strands").addEventListener("change", function() { resetAll(); });
+  document.getElementById("root-type").addEventListener("change", function() { resetAll(); });
+
+  document.getElementById("undo-btn").addEventListener("click", function() { undoLast(); });
+  document.getElementById("clear-btn").addEventListener("click", function() { resetExpr(); });
+  document.getElementById("eval-btn").addEventListener("click", function() {
+    document.getElementById("result-display").innerHTML = "<em>Running...</em>";
+    setTimeout(function() { evaluateExpr(); }, 10);
+  });
+  document.getElementById("parse-btn").addEventListener("click", function() {
+    document.getElementById("result-display").innerHTML = "<em>Running...</em>";
+    setTimeout(function() { parseTextExpr(); }, 10);
+  });
+  document.getElementById("text-input").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") { parseTextExpr(); }
+  });
+  document.getElementById("juxt-btn").addEventListener("click", function() { computeJuxtaposition(); });
+});
+</script>
+</body>
+</html>
